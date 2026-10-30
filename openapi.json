@@ -1,0 +1,2492 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenAsy Passwords API",
+    "version": "0.1.0",
+    "summary": "A password manager for the team on Vaultwarden, with shared vaults by Identity group.",
+    "description": "Every screen of Passwords uses this API, and so can your scripts (ADR 0014). Within `/api/v1` changes are additive only; anything removed is deprecated first (ADR 0024). Errors use Problem Details (RFC 9457).\n\nThe shared vaults, who may see or change each, and the policies are set in the vaults file, never through the API; Passwords keeps Vaultwarden in step with it and with Identity. Under `/api/v1/vault` a signed-in person's browser reaches Vaultwarden through this server, as it is: the browser derives every key and decrypts every item, and this server keeps none of them. Those routes take the session of that person, never an API token. Everything else takes a session or an API token, and each operation names the role it needs (`x-openasy-role`: user, viewer, editor, admin; ADR 0003).\n\nSign-in, members and API tokens are under `/api/v1/auth`, provided by [@openasy/auth](https://github.com/openasy/auth#routes).",
+    "license": {
+      "name": "AGPL-3.0-only",
+      "identifier": "AGPL-3.0-only"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "This Passwords"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Vault",
+      "description": "A person's own vault, through Vaultwarden, decrypted in their browser."
+    },
+    {
+      "name": "Vaults",
+      "description": "The shared vaults, as the vaults file sets them."
+    },
+    {
+      "name": "Activity",
+      "description": "Vaultwarden's event log for the shared vaults."
+    },
+    {
+      "name": "Leavers",
+      "description": "People who leave, and the shared items they could see."
+    },
+    {
+      "name": "Server",
+      "description": "Keeping Vaultwarden in step with the file and Identity."
+    },
+    {
+      "name": "Product",
+      "description": "Version and overview of this Passwords."
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "liveness",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Liveness",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The process is running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "readiness",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Readiness",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The database answers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database does not answer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "metrics",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Prometheus metrics",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Metrics in the Prometheus text format.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/version": {
+      "get": {
+        "operationId": "getVersion",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Product and version",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "This product and its version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "operationId": "listProducts",
+        "tags": [
+          "Product"
+        ],
+        "summary": "The install's other OpenAsy products",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Needs the user role.",
+        "responses": {
+          "200": {
+            "description": "From OPENASY_PRODUCTS, for the product switcher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      }
+    },
+    "/api/v1/summary": {
+      "get": {
+        "operationId": "getSummary",
+        "tags": [
+          "Product"
+        ],
+        "summary": "Overview of this Passwords",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Needs the viewer role.",
+        "responses": {
+          "200": {
+            "description": "The vaults file, the last sync, the organization and its checks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "viewer"
+      }
+    },
+    "/api/v1/vaults": {
+      "get": {
+        "operationId": "listVaults",
+        "tags": [
+          "Vaults"
+        ],
+        "summary": "The shared vaults",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Set in the vaults file only; no route adds, changes or removes a vault. Needs the user role.",
+        "responses": {
+          "200": {
+            "description": "The vaults of the file with their groups and people. A user sees the vaults a group gives them; a viewer or more sees all.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      }
+    },
+    "/api/v1/confirmations": {
+      "get": {
+        "operationId": "listConfirmations",
+        "tags": [
+          "Vaults"
+        ],
+        "summary": "Members waiting to be confirmed",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Needs the viewer role.",
+        "responses": {
+          "200": {
+            "description": "Members who joined and wait for an admin's browser to give them the organization's key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "viewer"
+      }
+    },
+    "/api/v1/sync": {
+      "get": {
+        "operationId": "getSync",
+        "tags": [
+          "Server"
+        ],
+        "summary": "Syncs with Vaultwarden",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Needs the viewer role.",
+        "responses": {
+          "200": {
+            "description": "The last sync and the history.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncHistory"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "viewer"
+      },
+      "post": {
+        "operationId": "sync",
+        "tags": [
+          "Server"
+        ],
+        "summary": "Sync with Vaultwarden now",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Imports members and groups from Identity, sets each vault's access from the file and applies the policies. This also happens after each change of the file, every five minutes and when someone signs in. Needs the admin role.",
+        "responses": {
+          "200": {
+            "description": "What was changed in Vaultwarden.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "admin"
+      }
+    },
+    "/api/v1/activity": {
+      "get": {
+        "operationId": "listActivity",
+        "tags": [
+          "Activity"
+        ],
+        "summary": "Who opened, copied or changed which shared item",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Needs the viewer role.",
+        "parameters": [
+          {
+            "name": "vault",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "A vault id of the file."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item events of Vaultwarden's log, newest first. The browser names the items.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Activity"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "viewer"
+      }
+    },
+    "/api/v1/leavers": {
+      "get": {
+        "operationId": "listLeavers",
+        "tags": [
+          "Leavers"
+        ],
+        "summary": "People who leave and what they could see",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Needs the viewer role.",
+        "responses": {
+          "200": {
+            "description": "Leaving and earlier leavers, each with the shared items they could see, the recently opened first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaverList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "viewer"
+      },
+      "post": {
+        "operationId": "planLeaver",
+        "tags": [
+          "Leavers"
+        ],
+        "summary": "Plan someone's last day",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "They are removed from the organization on that day, even while Identity still lists them. Needs the editor role.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewLeaver"
+              }
+            }
+          },
+          "description": "Who and when."
+        },
+        "responses": {
+          "201": {
+            "description": "The leaver, with what they can see now.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Leaver"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "editor"
+      }
+    },
+    "/api/v1/leavers/{id}": {
+      "delete": {
+        "operationId": "cancelLeaver",
+        "tags": [
+          "Leavers"
+        ],
+        "summary": "Cancel a planned leaving date",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Needs the editor role.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cancelled."
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "editor"
+      }
+    },
+    "/api/v1/leavers/{id}/items/{item}": {
+      "put": {
+        "operationId": "markChanged",
+        "tags": [
+          "Leavers"
+        ],
+        "summary": "Mark an item a leaver could see as changed",
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "apiToken": []
+          },
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Needs the editor role.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "item",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangedMark"
+              }
+            }
+          },
+          "description": "Changed or not."
+        },
+        "responses": {
+          "200": {
+            "description": "The item.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaverItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "editor"
+      }
+    },
+    "/api/v1/vault/settings": {
+      "get": {
+        "operationId": "getVaultSettings",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "What the browser needs to unlock",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "description": "Needs a signed-in person, not an API token, and acts as that person only.",
+        "responses": {
+          "200": {
+            "description": "Which organization, where the Bitwarden apps connect, and whether leaks are looked up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      }
+    },
+    "/api/v1/vault/prelogin": {
+      "post": {
+        "operationId": "prelogin",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "The person's key derivation settings",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "description": "Vaultwarden's /identity/accounts/prelogin, always for the signed-in person's address. Needs a signed-in person, not an API token, and acts as that person only.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      }
+    },
+    "/api/v1/vault/token": {
+      "post": {
+        "operationId": "vaultToken",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Sign in to Vaultwarden",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "description": "Vaultwarden's /identity/connect/token with the password or refresh_token grant. The password is the master password hash the browser derives, never the master password. The user name is always the signed-in person's address. Needs a signed-in person, not an API token, and acts as that person only.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "grant_type": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "refresh_token": {
+                    "type": "string"
+                  },
+                  "device_type": {
+                    "type": "string"
+                  },
+                  "device_identifier": {
+                    "type": "string"
+                  },
+                  "device_name": {
+                    "type": "string"
+                  },
+                  "two_factor_token": {
+                    "type": "string"
+                  },
+                  "two_factor_provider": {
+                    "type": "string"
+                  },
+                  "two_factor_remember": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      }
+    },
+    "/api/v1/vault/sync": {
+      "get": {
+        "operationId": "vaultSync",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "The person's encrypted vault",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "description": "Vaultwarden's /api/sync: keys, items and collections, all encrypted; the browser decrypts them. Needs a signed-in person, not an API token, and acts as that person only.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      }
+    },
+    "/api/v1/vault/events": {
+      "post": {
+        "operationId": "collectEvents",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Record that the person opened or copied an item",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "description": "Vaultwarden's /events/collect, as the Bitwarden apps report it. Needs a signed-in person, not an API token, and acts as that person only.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": [
+                  "object",
+                  "array"
+                ]
+              }
+            }
+          },
+          "description": "Events, as the Bitwarden apps send them."
+        },
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      }
+    },
+    "/api/v1/vault/organization/items": {
+      "get": {
+        "operationId": "organizationItems",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Every item of the organization, encrypted",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "description": "Vaultwarden's /api/ciphers/organization-details, for owners and admins of the organization. Needs a signed-in person, not an API token, and acts as that person only.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      }
+    },
+    "/api/v1/vault/organization/public-keys": {
+      "post": {
+        "operationId": "memberPublicKeys",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Public keys of members to confirm",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "description": "Vaultwarden's /api/organizations/{org}/users/public-keys. Needs a signed-in person with the admin role, not an API token.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": [
+                  "object",
+                  "array"
+                ]
+              }
+            }
+          },
+          "description": "Member ids."
+        },
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "admin"
+      }
+    },
+    "/api/v1/vault/organization/confirm": {
+      "post": {
+        "operationId": "confirmMembers",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Confirm members",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "description": "Vaultwarden's /api/organizations/{org}/users/confirm, with the organization's key encrypted in the admin's browser to each member's public key. Needs a signed-in person with the admin role, not an API token.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": [
+                  "object",
+                  "array"
+                ]
+              }
+            }
+          },
+          "description": "Member ids and their keys."
+        },
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "admin"
+      }
+    },
+    "/api/v1/vault/organization/collections": {
+      "post": {
+        "operationId": "createCollection",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Create a vault's collection",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "description": "Vaultwarden's /api/organizations/{org}/collections, with the name encrypted in the admin's browser and the vault id as external id. Its groups follow from the file at the sync that follows. Needs a signed-in person with the admin role, not an API token.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": [
+                  "object",
+                  "array"
+                ]
+              }
+            }
+          },
+          "description": "The collection."
+        },
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "admin"
+      }
+    },
+    "/api/v1/vault/organization/collections/{id}": {
+      "put": {
+        "operationId": "renameCollection",
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Rename a vault's collection",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "description": "Vaultwarden's /api/organizations/{org}/collections/{id}, to give it the name of the file. Needs a signed-in person with the admin role, not an API token.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": [
+                  "object",
+                  "array"
+                ]
+              }
+            }
+          },
+          "description": "The collection."
+        },
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "admin"
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-openasy-session",
+        "description": "The browser session after signing in (`openasy-session` when Passwords runs on plain http://localhost). Requests that change something must come from the Passwords origin."
+      },
+      "apiToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An API token created under Settings, API tokens (`oa_passwords_...`): one role, always an expiry (ADR 0003)."
+      },
+      "adminToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Only when Passwords is started by its tests or a local script: one shared token with the admin role. A production install does not have it."
+      }
+    },
+    "responses": {
+      "Problem": {
+        "description": "An error, as RFC 9457 Problem Details.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "invalid-token",
+              "invalid-json",
+              "invalid-body",
+              "not-found",
+              "conflict",
+              "vault-server-unavailable",
+              "payload-too-large",
+              "internal-error",
+              "unauthenticated",
+              "invalid-credentials",
+              "mfa-required",
+              "mfa-setup-required",
+              "forbidden",
+              "cross-site"
+            ],
+            "description": "Stable; match on this."
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductLink": {
+        "type": "object",
+        "required": [
+          "id",
+          "url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductList": {
+        "type": "object",
+        "required": [
+          "products"
+        ],
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductLink"
+            }
+          }
+        }
+      },
+      "Version": {
+        "type": "object",
+        "required": [
+          "product",
+          "version"
+        ],
+        "properties": {
+          "product": {
+            "type": "string",
+            "const": "passwords"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "ConfigFile": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "required": [
+          "path",
+          "appliedAt",
+          "vaults",
+          "groups",
+          "error"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "appliedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vaults": {
+            "type": "integer"
+          },
+          "groups": {
+            "type": "integer"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the file on disk is not applied; the last good version stays in use."
+          }
+        }
+      },
+      "SyncResult": {
+        "type": "object",
+        "required": [
+          "at",
+          "ok",
+          "added",
+          "removed",
+          "vaults",
+          "missing",
+          "policies",
+          "notes",
+          "error"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "added": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Emails that became members."
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Emails removed from the organization."
+          },
+          "vaults": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Vault ids whose access was set again."
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Vault ids with no collection in Vaultwarden yet; an admin's browser creates them."
+          },
+          "policies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SyncRun": {
+        "type": "object",
+        "required": [
+          "at",
+          "ok",
+          "added",
+          "removed",
+          "vaults",
+          "policies",
+          "error"
+        ],
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "added": {
+            "type": "integer"
+          },
+          "removed": {
+            "type": "integer"
+          },
+          "vaults": {
+            "type": "integer"
+          },
+          "policies": {
+            "type": "integer"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SyncHistory": {
+        "type": "object",
+        "required": [
+          "last",
+          "runs"
+        ],
+        "properties": {
+          "last": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SyncResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncRun"
+            }
+          }
+        }
+      },
+      "Policies": {
+        "type": "object",
+        "required": [
+          "twoStepLogin",
+          "masterPassword",
+          "passwordGenerator",
+          "disableSend"
+        ],
+        "properties": {
+          "twoStepLogin": {
+            "type": "boolean"
+          },
+          "disableSend": {
+            "type": "boolean"
+          },
+          "masterPassword": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "minLength": {
+                "type": "integer"
+              },
+              "minComplexity": {
+                "type": "integer"
+              },
+              "requireUpper": {
+                "type": "boolean"
+              },
+              "requireLower": {
+                "type": "boolean"
+              },
+              "requireNumbers": {
+                "type": "boolean"
+              },
+              "requireSpecial": {
+                "type": "boolean"
+              }
+            }
+          },
+          "passwordGenerator": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "minLength": {
+                "type": "integer"
+              },
+              "useUpper": {
+                "type": "boolean"
+              },
+              "useLower": {
+                "type": "boolean"
+              },
+              "useNumbers": {
+                "type": "boolean"
+              },
+              "useSpecial": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "Summary": {
+        "type": "object",
+        "required": [
+          "vaults",
+          "groups",
+          "members",
+          "waiting",
+          "keyHolders",
+          "missing",
+          "policies",
+          "file",
+          "sync",
+          "identity",
+          "organizationId",
+          "vaultwardenUrl",
+          "leakCheck",
+          "features"
+        ],
+        "properties": {
+          "vaults": {
+            "type": "integer"
+          },
+          "groups": {
+            "type": "integer"
+          },
+          "members": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Confirmed members; null before the first sync."
+          },
+          "waiting": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Members waiting to be confirmed."
+          },
+          "keyHolders": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Confirmed owners and admins, who hold the organization's key; with none, the shared vaults cannot be opened again."
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "policies": {
+            "$ref": "#/components/schemas/Policies"
+          },
+          "file": {
+            "$ref": "#/components/schemas/ConfigFile"
+          },
+          "sync": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SyncResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "identity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "vaultwardenUrl": {
+            "type": "string"
+          },
+          "leakCheck": {
+            "type": "boolean"
+          },
+          "features": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "groups": {
+                "type": "boolean"
+              },
+              "events": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "VaultMember": {
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "access",
+          "group"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "access": {
+            "type": "string",
+            "enum": [
+              "read",
+              "edit",
+              "manage"
+            ]
+          },
+          "group": {
+            "type": "string"
+          }
+        }
+      },
+      "Vault": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "access",
+          "collectionId",
+          "members"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "access": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "group",
+                "access"
+              ],
+              "properties": {
+                "group": {
+                  "type": "string"
+                },
+                "access": {
+                  "type": "string",
+                  "enum": [
+                    "read",
+                    "edit",
+                    "manage"
+                  ]
+                }
+              }
+            }
+          },
+          "collectionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VaultMember"
+            }
+          }
+        }
+      },
+      "VaultList": {
+        "type": "object",
+        "required": [
+          "vaults",
+          "file"
+        ],
+        "properties": {
+          "vaults": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Vault"
+            }
+          },
+          "file": {
+            "$ref": "#/components/schemas/ConfigFile"
+          }
+        }
+      },
+      "ConfirmationList": {
+        "type": "object",
+        "required": [
+          "members"
+        ],
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "email",
+                "name"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Event": {
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "type",
+          "action",
+          "actor",
+          "itemId",
+          "vaults",
+          "collections",
+          "deviceType",
+          "ip"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string"
+          },
+          "type": {
+            "type": "integer",
+            "description": "Bitwarden's event type."
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "opened",
+              "copied",
+              "filled",
+              "changed",
+              "added",
+              "moved",
+              "removed"
+            ]
+          },
+          "actor": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "vaults": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "deviceType": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Bitwarden's device type: 2 Chrome extension, 9 Chrome, 1 iOS and so on."
+          },
+          "ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Activity": {
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            }
+          }
+        }
+      },
+      "LeaverItem": {
+        "type": "object",
+        "required": [
+          "itemId",
+          "vaults",
+          "lastOpened",
+          "recent",
+          "changed",
+          "changedBy",
+          "deleted"
+        ],
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "description": "Vaultwarden's id of the item; the browser decrypts its name."
+          },
+          "vaults": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Vault ids of the file, or collection ids for collections the file does not name."
+          },
+          "lastOpened": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the leaver last opened, copied or filled it in."
+          },
+          "recent": {
+            "type": "boolean",
+            "description": "Opened in the last 90 days: change it first."
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "Marked as changed, or its password changed after the leaver was known."
+          },
+          "changedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deleted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Leaver": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "name",
+          "reason",
+          "leavesOn",
+          "leftAt",
+          "items",
+          "changed"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "disabled",
+              "no-group",
+              "gone"
+            ],
+            "description": "planned: an editor set the date; disabled: Identity disabled them; no-group: they left every group of the file; gone: Identity no longer lists them."
+          },
+          "leavesOn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "leftAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeaverItem"
+            }
+          },
+          "changed": {
+            "type": "integer"
+          }
+        }
+      },
+      "LeaverList": {
+        "type": "object",
+        "required": [
+          "leavers"
+        ],
+        "properties": {
+          "leavers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Leaver"
+            }
+          }
+        }
+      },
+      "NewLeaver": {
+        "type": "object",
+        "required": [
+          "email",
+          "leavesOn"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "leavesOn": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "ChangedMark": {
+        "type": "object",
+        "required": [
+          "changed"
+        ],
+        "properties": {
+          "changed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "VaultSettings": {
+        "type": "object",
+        "required": [
+          "email",
+          "organizationId",
+          "vaultwardenUrl",
+          "leakCheck",
+          "member"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string"
+          },
+          "vaultwardenUrl": {
+            "type": "string"
+          },
+          "leakCheck": {
+            "type": "boolean"
+          },
+          "member": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "integer"
+              },
+              "type": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "VaultwardenAnswer": {
+        "type": [
+          "object",
+          "array"
+        ],
+        "description": "Vaultwarden's own answer (its API is Bitwarden's). Keys and items in it are encrypted; only the person's browser decrypts them."
+      }
+    }
+  }
+}

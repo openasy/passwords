@@ -1,0 +1,99 @@
+# Passwords: the shared vaults and their pages (this repository) next to Vaultwarden, the password server the Bitwarden
+# apps use. See the README for the first start: Vaultwarden's sign-in through Identity, the organization, its two API
+# keys, and the token Passwords reads Identity's groups with.
+#
+#   openssl rand -hex 32 > openasy-kek            # Passwords' key: sign-in secrets (ADR 0021). Keep it with your backups
+#   printf '%s' 'organization API key client_secret' > vaultwarden-org-key
+#   printf '%s' 'service account API key client_secret' > vaultwarden-service-key
+#   printf '%s' 'Identity API token, viewer role' > identity-token
+#   printf '%s' 'client secret Identity gave Vaultwarden' > vaultwarden-sso-secret
+#   docker compose up -d
+#   docker compose logs passwords | grep 'no owner yet'   # the one-time link that creates the owner account
+services:
+  vaultwarden:
+    # Pin the exact version you run; Passwords is built against Vaultwarden 1.37.4.
+    image: vaultwarden/server:1.37.4
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:80" # the Bitwarden apps and the web vault; put your TLS proxy in front, at VAULTWARDEN_DOMAIN
+    volumes:
+      - vaultwarden-data:/data # every vault, encrypted: keep it in your backups
+    secrets:
+      - vaultwarden-sso-secret
+    environment:
+      # The https:// address the Bitwarden apps are pointed at.
+      DOMAIN: ${VAULTWARDEN_DOMAIN:-https://vault.example.com}
+      # People join through Identity, never by signing up on their own.
+      SIGNUPS_ALLOWED: "false"
+      INVITATIONS_ALLOWED: "true"
+      # Who may create organizations: the person who sets up the company's one.
+      ORG_CREATION_USERS: ${VAULTWARDEN_ORG_CREATOR:-admin@example.com}
+      # Groups, so vault access follows Identity's groups; the event log, for Activity and Leavers.
+      ORG_GROUPS_ENABLED: "true"
+      ORG_EVENTS_ENABLED: "true"
+      EVENTS_DAYS_RETAIN: "400"
+      # Sign in through Identity (OIDC). The master password stays: it encrypts the vault, and Passwords' pages unlock
+      # with it, so SSO_ONLY stays false.
+      SSO_ENABLED: "true"
+      SSO_ONLY: "false"
+      SSO_SIGNUPS_MATCH_EMAIL: "true"
+      SSO_AUTHORITY: ${IDENTITY_URL:-https://id.example.com}
+      SSO_CLIENT_ID: vaultwarden
+      SSO_CLIENT_SECRET_FILE: /run/secrets/vaultwarden-sso-secret
+      SSO_SCOPES: "email profile"
+      # Passwords passes on each person's address as X-Real-IP; it is trusted from the container network only.
+      IP_HEADER: X-Real-IP
+      IP_HEADER_TRUSTED_PROXIES: local
+      # No /admin page: everything it would change is set here or in the vaults file.
+      # ADMIN_TOKEN is left unset on purpose.
+
+  passwords:
+    image: ghcr.io/openasy/passwords:0.1.0
+    restart: unless-stopped
+    depends_on: [vaultwarden]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: [/tmp]
+    ports:
+      - "127.0.0.1:8080:8080" # the pages and API; put a TLS proxy in front
+    volumes:
+      - passwords-data:/data # SQLite database: sign-in, syncs, the event log and leavers; never an item or a key
+      - ./config:/config:ro # passwords.yaml, the shared vaults; mount the folder so an editor's save reaches it
+    secrets:
+      - openasy-kek # mounted at /run/secrets/openasy-kek
+      - vaultwarden-org-key # mounted at /run/secrets/vaultwarden-org-key
+      - vaultwarden-service-key # mounted at /run/secrets/vaultwarden-service-key
+      - identity-token # mounted at /run/secrets/identity-token
+    environment:
+      # The address people open Passwords at; with a TLS proxy, its https:// URL.
+      PASSWORDS_PUBLIC_URL: ${PASSWORDS_PUBLIC_URL:-http://localhost:8080}
+      PASSWORDS_CONFIG: /config/passwords.yaml
+      PASSWORDS_VAULTWARDEN_URL: http://vaultwarden:80
+      PASSWORDS_VAULTWARDEN_PUBLIC_URL: ${VAULTWARDEN_DOMAIN:-https://vault.example.com}
+      # The company's organization in Vaultwarden, and the service account's API key client_id (user.<uuid>).
+      PASSWORDS_ORGANIZATION_ID: ${PASSWORDS_ORGANIZATION_ID:?the organization id from Vaultwarden}
+      PASSWORDS_SERVICE_CLIENT_ID: ${PASSWORDS_SERVICE_CLIENT_ID:?the service account API key client_id}
+      PASSWORDS_IDENTITY_URL: ${IDENTITY_URL:-https://id.example.com}
+      # Sign in with Identity (OIDC), see the README. Everyone with a vault signs in as a user:
+      # OPENASY_OIDC_PROVIDER: openasy-identity
+      # OPENASY_OIDC_ISSUER: https://id.example.com
+      # OPENASY_OIDC_CLIENT_ID: passwords
+      # OPENASY_OIDC_CLIENT_SECRET: ${OPENASY_OIDC_CLIENT_SECRET}
+      # OPENASY_OIDC_DEFAULT_ROLE: user
+
+volumes:
+  vaultwarden-data:
+  passwords-data:
+
+secrets:
+  openasy-kek:
+    file: ./openasy-kek
+  vaultwarden-org-key:
+    file: ./vaultwarden-org-key
+  vaultwarden-service-key:
+    file: ./vaultwarden-service-key
+  identity-token:
+    file: ./identity-token
+  vaultwarden-sso-secret:
+    file: ./vaultwarden-sso-secret

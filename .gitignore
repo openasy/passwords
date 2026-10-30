@@ -1,0 +1,11 @@
+node_modules
+dist
+data
+coverage
+*.log
+.DS_Store
+openasy-kek
+vaultwarden-org-key
+vaultwarden-service-key
+identity-token
+vaultwarden-sso-secret
