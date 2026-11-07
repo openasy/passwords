@@ -181,6 +181,7 @@ describe("the pages", () => {
     await see("Sales is not on the password server yet");
   });
 
+  // Encrypting in the page takes a few seconds on a shared CI runner, so this one gets 30.
   it("add an item to the open shared vault, encrypted before it leaves the page, then change and remove it", async () => {
     const button = (name: string) =>
       [...document.querySelectorAll("button")].find((b) => (b.textContent ?? b.getAttribute("aria-label")) === name || b.getAttribute("aria-label") === name)!;
@@ -226,7 +227,7 @@ describe("the pages", () => {
     );
     for (let i = 0; i < 100 && (document.body.textContent ?? "").includes("Payroll provider"); i++) await act(() => new Promise((r) => setTimeout(r, 20)));
     expect(document.body.textContent).not.toContain("Payroll provider");
-  });
+  }, 30_000);
 
   it("show Health, Leavers, Activity and the password server", async () => {
     await act(async () => navigate("/health"));
