@@ -32,6 +32,19 @@ interface FakeItem {
   login: { password: string; passwordRevisionDate: string | null } | null;
 }
 
+type Raw = Record<string, unknown>;
+
+/** An item written through /api/ciphers: its encrypted fields kept as they came, with who owns it and where it is. */
+interface StoredCipher extends Raw {
+  id: string;
+  owner: string;
+  organizationId: string | null;
+  collectionIds: string[];
+  revisionDate: string;
+  creationDate: string;
+  deletedDate: string | null;
+}
+
 export function fakeVaultwarden() {
   let next = 0;
   const id = (p: string) => `${p}-${(next++).toString(36)}`;
@@ -43,6 +56,7 @@ export function fakeVaultwarden() {
   const policies = new Map<number, { enabled: boolean; data: Record<string, unknown> | null }>();
   const events: VwEvent[] = [];
   const items: FakeItem[] = [];
+  const ciphers = new Map<string, StoredCipher>();
   /** Every call, with the token it came with and its body. */
   const calls: Array<{ method: string; path: string; token: string | null; body: unknown; headers: Record<string, string> }> = [];
   const state = { down: false, features: { groups: true, events: true } };
@@ -244,6 +258,67 @@ export function fakeVaultwarden() {
       return json({ data: items.map((i) => ({ ...i, name: `2.name-${i.id}` })), object: "list", continuationToken: null });
     }
 
+    // Items, as src/api/core/ciphers.rs takes them: encryptedFor must be the caller, an organization item needs a
+    // confirmed membership and collections the caller sees, and a stale lastKnownRevisionDate is refused.
+    const cipherPath = /^\/api\/ciphers(?:\/([^/]+))?(\/share|\/delete|\/create)?$/.exec(path);
+    if (cipherPath) {
+      const [, cid, action] = cipherPath;
+      const caller = users.get(me.toLowerCase())!;
+      const data = ((action === "/share" || cid === "create" ? (body as { cipher: Raw }).cipher : body) ?? {}) as Raw;
+      const cols = action === "/share" || cid === "create" ? ((body as { collectionIds: string[] }).collectionIds ?? []) : null;
+      if (method !== "PUT" || action !== "/delete") {
+        if (data.encryptedFor !== caller.id) return error("Invalid user cipher", 422);
+        if (data.organizationId && memberByEmail(me)?.status !== 2) return error("You don't have permission to add item to organization");
+        if (cols && cols.some((c) => !visible(me).has(c))) return error("You don't have permission to add item to collection");
+      }
+      const save = (id: string, prev: StoredCipher | undefined): Response => {
+        if (prev && data.lastKnownRevisionDate && Date.parse(prev.revisionDate) - Date.parse(String(data.lastKnownRevisionDate)) > 1000)
+          return error("The client copy of this cipher is out of date. Resync the client and try again.");
+        if (prev?.organizationId && prev.organizationId !== data.organizationId)
+          return error("Organization mismatch. Please resync the client before updating the cipher");
+        const now = new Date().toISOString();
+        const c: StoredCipher = {
+          ...(data as object),
+          id,
+          owner: me,
+          organizationId: (data.organizationId as string | null) ?? null,
+          collectionIds: cols ?? prev?.collectionIds ?? [],
+          revisionDate: now,
+          creationDate: prev?.creationDate ?? now,
+          deletedDate: null,
+        };
+        ciphers.set(id, c);
+        if (c.organizationId) {
+          const i = items.findIndex((x) => x.id === id);
+          const login = (c.login ?? null) as { password?: string; passwordRevisionDate?: string | null } | null;
+          const row: FakeItem = {
+            id,
+            type: Number(c.type),
+            collectionIds: c.collectionIds,
+            revisionDate: now,
+            deletedDate: null,
+            login: login ? { password: String(login.password ?? ""), passwordRevisionDate: login.passwordRevisionDate ?? null } : null,
+          };
+          if (i >= 0) items[i] = row;
+          else items.push(row);
+        }
+        return json({ ...c, object: "cipherDetails", edit: true, viewPassword: true });
+      };
+      if (method === "POST" && !cid) return data.organizationId ? error("Use /ciphers/create for an organization item") : save(id("cipher"), undefined);
+      if (method === "POST" && cid === "create") return save(id("cipher"), undefined);
+      const prev = cid ? ciphers.get(cid) : undefined;
+      if (!prev || (prev.owner !== me && !(prev.organizationId && prev.collectionIds.some((c) => visible(me).has(c))))) return error("Cipher doesn't exist");
+      if (method === "PUT" && !action) return save(prev.id, prev);
+      if (method === "PUT" && action === "/share") return prev.organizationId ? error("Cipher is already shared") : save(prev.id, prev);
+      if (method === "PUT" && action === "/delete") {
+        prev.deletedDate = new Date().toISOString();
+        const i = items.find((x) => x.id === prev.id);
+        if (i) i.deletedDate = prev.deletedDate;
+        return new Response(null, { status: 200 });
+      }
+      return error("Not found", 404);
+    }
+
     if (!path.startsWith(prefix)) return error("Not found", 404);
     if (!isAdmin(me)) return error("You need to be Admin or Owner to call this endpoint", 401);
     const rest = path.slice(prefix.length);
@@ -345,7 +420,7 @@ export function fakeVaultwarden() {
     return route(init.method ?? "GET", url, token, body, form);
   }) as typeof globalThis.fetch;
 
-  return { fetch, users, members, groups, collections, policies, events, items, calls, state, addUser, addMember, memberByEmail };
+  return { fetch, users, members, groups, collections, policies, events, items, ciphers, calls, state, addUser, addMember, memberByEmail };
 }
 
 export type FakeVaultwarden = ReturnType<typeof fakeVaultwarden>;

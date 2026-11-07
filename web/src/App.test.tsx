@@ -64,6 +64,7 @@ const API: Record<string, unknown> = {
     vaultwardenUrl: "https://vault.example.com",
     leakCheck: false,
     member: { id: "m0", status: 2, type: 1 },
+    generator: { minLength: 24, useUpper: true, useLower: true, useNumbers: true, useSpecial: true },
   },
   "/api/v1/vaults": {
     vaults: [
@@ -178,6 +179,53 @@ describe("the pages", () => {
     // Admin tasks: a person to confirm and a vault of the file to create.
     await see("1 person waits to be confirmed");
     await see("Sales is not on the password server yet");
+  });
+
+  it("add an item to the open shared vault, encrypted before it leaves the page, then change and remove it", async () => {
+    const button = (name: string) =>
+      [...document.querySelectorAll("button")].find((b) => (b.textContent ?? b.getAttribute("aria-label")) === name || b.getAttribute("aria-label") === name)!;
+    const field = (label: string) => {
+      const l = [...document.querySelectorAll("label")].find((x) => x.textContent === label)!;
+      return document.getElementById(l.htmlFor) as HTMLInputElement;
+    };
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Your vaults"] button')].find((b) => b.textContent?.startsWith("Finance"))!.click(),
+    );
+    await act(async () => button("New item").click());
+    await see("Encrypted in this browser before it is saved");
+    expect(field("Vault").value).toBe("col-finance");
+    await act(async () => type(field("Name"), "Payroll provider"));
+    await act(async () => type(field("User name"), "finance@acme.example"));
+    await act(async () => button("Make a strong password").click());
+    const made = field("Password").value;
+    // The file's generator policy asks for 24 characters.
+    expect(made).toHaveLength(24);
+    await act(async () => field("Name").form!.requestSubmit());
+    await see("Payroll provider");
+    const sent = vault.sent.find((r) => r.path === "/api/v1/vault/items")!;
+    expect(JSON.parse(sent.body)).toMatchObject({ collectionIds: ["col-finance"], cipher: { organizationId: ORG, encryptedFor: "user-emily", type: 1 } });
+    expect(sent.body).not.toContain("Payroll");
+    expect(sent.body).not.toContain(made);
+
+    // Changing the password keeps the old one in the item's history.
+    await act(async () => [...document.querySelectorAll("tr")].find((r) => r.textContent?.includes("Payroll provider"))!.click());
+    await act(async () => button("Edit").click());
+    await see("Change Payroll provider");
+    await act(async () => type(field("Password"), "a-New-password-2026!"));
+    await see("The old password is kept in the item's history.");
+    await act(async () => field("Name").form!.requestSubmit());
+    await see("1 earlier password");
+    expect(vault.written[0]!.passwordHistory).toHaveLength(1);
+
+    await act(async () => button("Put in the trash").click());
+    await see("Put Payroll provider in the trash?");
+    await act(async () =>
+      [...document.querySelectorAll('[role="dialog"] button')]
+        .find((b) => b.textContent === "Put in the trash")!
+        .dispatchEvent(new MouseEvent("click", { bubbles: true })),
+    );
+    for (let i = 0; i < 100 && (document.body.textContent ?? "").includes("Payroll provider"); i++) await act(() => new Promise((r) => setTimeout(r, 20)));
+    expect(document.body.textContent).not.toContain("Payroll provider");
   });
 
   it("show Health, Leavers, Activity and the password server", async () => {

@@ -65,3 +65,21 @@
 .pw-code {
   letter-spacing: 0.1em;
 }
+
+/* An item's notes in its form, a few lines high. */
+.pw-notes {
+  min-height: 5rem;
+  resize: vertical;
+  font: inherit;
+}
+
+/* Fields side by side in a form, such as a card's expiry and code. */
+.pw-row {
+  display: grid;
+  gap: 0.625rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pw-self-start {
+  align-self: flex-start;
+}

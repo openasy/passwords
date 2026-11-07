@@ -517,6 +517,8 @@ export function createPasswords(
         vaultwardenUrl,
         leakCheck,
         member: m ? { id: m.id, status: m.status, type: m.type } : null,
+        // The file's generator policy, so passwords made in the pages follow it as the apps' do.
+        generator: config.policies.passwordGenerator,
       };
     },
 

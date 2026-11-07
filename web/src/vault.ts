@@ -4,6 +4,7 @@
 //
 // The unlocked session lives in memory only: closing or reloading the page, or locking, drops every key and item.
 import { type VaultSettings } from "./api.ts";
+import { buildCipher, shareCipher, type Draft, type Opened } from "./items.ts";
 import {
   CryptoError,
   decrypt,
@@ -68,6 +69,12 @@ export class TwoFactorRequired extends Error {
 export class SessionEnded extends Error {}
 export class VaultError extends Error {}
 
+/** What each item was opened with, kept beside it in memory so it can be changed or moved without decrypting again. */
+const OPENED = new WeakMap<Item, Opened>();
+
+/** Items this page can change: logins, notes and cards that opened, and that the person may edit and see. */
+export const editable = (i: Item) => i.edit && i.viewPassword && !i.error && !i.deleted && (i.kind === "login" || i.kind === "note" || i.kind === "card");
+
 /** Bitwarden's event types the page reports, as the apps do. */
 export const EVENT = { viewed: 1107, passwordShown: 1108, cardCodeShown: 1110, copiedPassword: 1111, copiedCardCode: 1113, cardNumberShown: 1117 } as const;
 
@@ -120,6 +127,14 @@ export interface Session {
   createVault(id: string, name: string): Promise<void>;
   /** Gives a vault's collection the name of the file. */
   renameVault(collectionId: string, id: string, name: string): Promise<void>;
+  /** Adds an item to the person's own vault (null) or to a shared vault's collection, encrypted in this browser. */
+  addItem(draft: Draft, collectionId: string | null): Promise<void>;
+  /** Changes an item; only the form's fields are encrypted again. */
+  updateItem(item: Item, draft: Draft): Promise<void>;
+  /** Moves a personal item into a shared vault. */
+  moveItem(item: Item, collectionId: string): Promise<void>;
+  /** Puts an item in the trash, where the Bitwarden apps can bring it back for 30 days. */
+  deleteItem(item: Item): Promise<void>;
   /** Reads the vault again. */
   reload(): Promise<void>;
 }
@@ -193,6 +208,16 @@ export async function unlock(password: string, settings: VaultSettings, { twoFac
   let orgRaw: Uint8Array<ArrayBuffer> | null = null;
   let orgKey: SymmetricKey | null = null;
   let orgAdmin = false;
+  let userId = "";
+  const keyOf = (item: Item) => {
+    const o = OPENED.get(item);
+    if (!o) throw new VaultError("This item cannot be changed here; use a Bitwarden app.");
+    return o;
+  };
+  const sharedKey = () => {
+    if (!orgKey) throw new VaultError("This browser does not hold the organization's key yet; an admin confirms you first.");
+    return orgKey;
+  };
   const session: Session = {
     email: settings.email,
     organizationId: settings.organizationId,
@@ -202,6 +227,7 @@ export async function unlock(password: string, settings: VaultSettings, { twoFac
 
     async reload() {
       const sync = await call("/api/v1/vault/sync");
+      userId = sync.profile.id ?? "";
       const pkcs8 = await decrypt(sync.profile.privateKey, user);
       const orgs = new Map<string, SymmetricKey>();
       for (const o of (sync.profile.organizations ?? []) as Raw[]) {
@@ -267,6 +293,39 @@ export async function unlock(password: string, settings: VaultSettings, { twoFac
       });
     },
 
+    async addItem(draft, collectionId) {
+      const cipher = await buildCipher({
+        draft,
+        userId,
+        vaultKey: collectionId ? sharedKey() : user,
+        organizationId: collectionId ? settings.organizationId : null,
+      });
+      await call("/api/v1/vault/items", { method: "POST", body: JSON.stringify({ cipher, collectionIds: collectionId ? [collectionId] : [] }) });
+      await session.reload();
+    },
+
+    async updateItem(item, draft) {
+      if (!editable(item)) throw new VaultError("You can only see this item.");
+      const cipher = await buildCipher({ draft, userId, previous: { opened: keyOf(item), password: item.password, uri: item.uris[0] ?? null } });
+      await call(`/api/v1/vault/items/${encodeURIComponent(item.id)}`, { method: "PUT", body: JSON.stringify(cipher) });
+      await session.reload();
+    },
+
+    async moveItem(item, collectionId) {
+      const cipher = await shareCipher(keyOf(item), { userId, organizationId: settings.organizationId, orgKey: sharedKey() });
+      await call(`/api/v1/vault/items/${encodeURIComponent(item.id)}/share`, {
+        method: "PUT",
+        body: JSON.stringify({ cipher, collectionIds: [collectionId] }),
+      });
+      await session.reload();
+    },
+
+    async deleteItem(item) {
+      if (!item.edit) throw new VaultError("You can only see this item.");
+      await call(`/api/v1/vault/items/${encodeURIComponent(item.id)}`, { method: "DELETE" });
+      await session.reload();
+    },
+
     async renameVault(collectionId, id, name) {
       if (!orgKey) throw new VaultError("This browser does not hold the organization's key.");
       await call(`/api/v1/vault/organization/collections/${encodeURIComponent(collectionId)}`, {
@@ -311,7 +370,9 @@ export async function openItem(c: Raw, vaultKey: SymmetricKey | undefined): Prom
   };
   try {
     if (!vaultKey) throw new CryptoError("This browser does not hold this vault's key.");
-    const key = c.key ? await symmetricKey(await decrypt(c.key, vaultKey)) : vaultKey;
+    const itemKey = c.key ? await decrypt(c.key, vaultKey) : null;
+    const key = itemKey ? await symmetricKey(itemKey) : vaultKey;
+    OPENED.set(base, { raw: c, key, itemKey });
     const text = async (v: unknown) => (typeof v === "string" && v ? decryptText(v, key) : null);
     base.name = (await text(c.name)) ?? "";
     base.notes = await text(c.notes);

@@ -6,7 +6,7 @@ import { decryptText, symmetricKey } from "./crypto.ts";
 import { EMAIL, ORG, PASSWORD, vaultServer as server } from "./test-vault.ts";
 import { EVENT, TwoFactorRequired, unlock, VaultError } from "./vault.ts";
 
-const settings = { email: EMAIL, organizationId: ORG, vaultwardenUrl: "https://vault.example.com", leakCheck: false, member: null };
+const settings = { email: EMAIL, organizationId: ORG, vaultwardenUrl: "https://vault.example.com", leakCheck: false, member: null, generator: null };
 
 describe("unlocking", () => {
   it("signs in with the master password hash only and decrypts items, cards and vault names in the browser", async () => {

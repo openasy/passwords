@@ -95,7 +95,8 @@
     "none": "Keiner",
     "edit": "Bearbeiten",
     "move": "In Tresor verschieben",
-    "editsInApps": "Einträge werden in den Bitwarden-Apps oder im Web-Tresor geändert, die sie auf Ihrem Gerät verschlüsseln."
+    "editsInApps": "Diese Art von Eintrag wird in den Bitwarden-Apps oder im Web-Tresor geändert, die ihn auf Ihrem Gerät verschlüsseln.",
+    "editInWebVault": "Im Web-Tresor bearbeiten"
   },
   "access": {
     "read": "Kann ansehen",
@@ -306,5 +307,42 @@
     "signOut": "Abmelden",
     "adminsOnly": "Nur für Admins",
     "askAnAdmin": "Bitten Sie einen Admin von Passwords, wenn Sie das brauchen."
+  },
+  "form": {
+    "newTitle": "Neuer Eintrag",
+    "editTitle": "{{name}} ändern",
+    "e2e": "Wird in diesem Browser verschlüsselt, bevor es gespeichert wird. Der Server sieht nie, was Sie eingeben.",
+    "kind": "Art",
+    "kinds": {
+      "login": "Zugangsdaten",
+      "note": "Sichere Notiz",
+      "card": "Karte"
+    },
+    "vault": "Tresor",
+    "name": "Name",
+    "nameNeeded": "Geben Sie dem Eintrag einen Namen.",
+    "generate": "Starkes Passwort erzeugen",
+    "keptInHistory": "Das alte Passwort bleibt im Verlauf des Eintrags.",
+    "totp": "Zwei-Schritt-Schlüssel",
+    "totpHint": "Der Schlüssel oder otpauth://-Link aus der Zwei-Schritt-Einrichtung der Website",
+    "totpBad": "Das ist kein Zwei-Schritt-Schlüssel und kein otpauth://-Link.",
+    "uri": "Website",
+    "moreUris_one": "{{count}} weitere Adresse bleibt, wie sie ist.",
+    "moreUris_other": "{{count}} weitere Adressen bleiben, wie sie sind.",
+    "expMonth": "Ablaufmonat",
+    "expYear": "Ablaufjahr",
+    "brand": "Marke",
+    "notes": "Notizen",
+    "add": "Eintrag hinzufügen",
+    "save": "Speichern",
+    "failed": "Nicht gespeichert",
+    "moveTitle": "{{name}} in einen geteilten Tresor verschieben",
+    "moveDetail": "Alle, denen die Gruppen des Tresors Zugriff geben, sehen ihn, und er verlässt Ihren eigenen Tresor. Er wird in diesem Browser mit dem Schlüssel des Tresors neu verschlüsselt.",
+    "move": "Verschieben",
+    "noTargets": "In keinem Ihrer geteilten Tresore dürfen Sie Einträge hinzufügen.",
+    "deleteTitle": "{{name}} in den Papierkorb legen?",
+    "deleteMine": "Er kann 30 Tage lang in einer Bitwarden-App aus dem Papierkorb zurückgeholt werden.",
+    "deleteShared": "Er verschwindet für alle aus dem geteilten Tresor. Ein Besitzer oder Admin kann ihn 30 Tage lang in einer Bitwarden-App aus dem Papierkorb zurückholen.",
+    "delete": "In den Papierkorb"
   }
 }

@@ -210,6 +210,54 @@ describe("the vault pass-through", () => {
     expect((await json(await app.admin("/api/v1/summary"))).missing).toEqual([]);
   });
 
+  it("passes items the browser encrypted on, to the person's own vault or the company's shared ones only", async () => {
+    app.fake.memberByEmail("emily.clark@example.com")!.status = 2;
+    const token = { "x-vault-authorization": "Bearer user-emily.clark@example.com" };
+    const me = app.fake.users.get("emily.clark@example.com")!.id;
+    const cipher = (over: object = {}) => ({ type: 1, name: "2.a|b|c", login: { password: "2.d|e|f" }, encryptedFor: me, organizationId: null, ...over });
+    const send = (path: string, method: string, body: unknown) => app.emily(path, { method, body: JSON.stringify(body), headers: token });
+
+    // A personal item goes to /api/ciphers, a shared one to /api/ciphers/create with its collection.
+    const mine = await json(await send("/api/v1/vault/items", "POST", { cipher: cipher(), collectionIds: [] }));
+    expect(app.fake.calls.at(-1)).toMatchObject({ method: "POST", path: "/api/ciphers", body: { encryptedFor: me, name: "2.a|b|c" } });
+    const shared = await send("/api/v1/vault/items", "POST", { cipher: cipher({ organizationId: ORG }), collectionIds: ["col-finance"] });
+    expect(shared.status).toBe(200);
+    expect(app.fake.calls.at(-1)).toMatchObject({ path: "/api/ciphers/create", body: { collectionIds: ["col-finance"] } });
+    expect(app.fake.items.find((i) => i.id === (app.fake.calls.at(-1)!.body as any).cipher.id)).toBeUndefined();
+
+    // Another organization, or a shared vault without the organization, is refused here before Vaultwarden is asked.
+    for (const body of [
+      { cipher: cipher({ organizationId: "another-org" }) },
+      { cipher: cipher(), collectionIds: ["col-finance"] },
+      { cipher: { ...cipher(), encryptedFor: undefined } },
+      { collectionIds: [] },
+    ]) {
+      const calls = app.fake.calls.length;
+      const res = await send("/api/v1/vault/items", "POST", body);
+      expect(res.status).toBe(422);
+      expect(app.fake.calls.length).toBe(calls);
+    }
+    // Vaultwarden's own rules come back as they are: an item must be encrypted for the caller.
+    const other = await send("/api/v1/vault/items", "POST", { cipher: cipher({ encryptedFor: "user-someone" }) });
+    expect(other.status).toBe(422);
+    expect((await json(other)).message).toBe("Invalid user cipher");
+
+    const changed = await send(`/api/v1/vault/items/${mine.id}`, "PUT", cipher({ name: "2.g|h|i", lastKnownRevisionDate: mine.revisionDate }));
+    expect(await json(changed)).toMatchObject({ id: mine.id, name: "2.g|h|i" });
+    const stale = await send(`/api/v1/vault/items/${mine.id}`, "PUT", cipher({ lastKnownRevisionDate: "2020-01-01T00:00:00Z" }));
+    expect((await json(stale)).message).toContain("out of date");
+
+    const moved = await send(`/api/v1/vault/items/${mine.id}/share`, "PUT", { cipher: cipher({ organizationId: ORG }), collectionIds: ["col-finance"] });
+    expect(await json(moved)).toMatchObject({ organizationId: ORG, collectionIds: ["col-finance"] });
+    expect(app.fake.items.find((i) => i.id === mine.id)).toMatchObject({ collectionIds: ["col-finance"] });
+
+    expect((await app.emily(`/api/v1/vault/items/${mine.id}`, { method: "DELETE", headers: token })).status).toBe(200);
+    expect(app.fake.calls.at(-1)).toMatchObject({ method: "PUT", path: `/api/ciphers/${mine.id}/delete` });
+    expect(app.fake.items.find((i) => i.id === mine.id)!.deletedDate).not.toBeNull();
+    // An API token never writes to a vault.
+    expect((await app.admin("/api/v1/vault/items", { method: "POST", body: JSON.stringify({ cipher: cipher() }) })).status).toBe(401);
+  });
+
   it("is open to signed-in people only, and says when Vaultwarden does not answer", async () => {
     expect((await fetch(`${app.base}/api/v1/vault/settings`)).status).toBe(401);
     expect(await json(await app.emily("/api/v1/vault/settings"))).toMatchObject({

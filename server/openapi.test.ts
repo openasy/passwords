@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PASSWORD_HASH } from "./fake-vaultwarden.ts";
+import { ORG, PASSWORD_HASH } from "./fake-vaultwarden.ts";
 import { ADMIN_TOKEN, EMILY, SELIN, startApp } from "./test-app.ts";
 
 // Contract tests (ADR 0024): every response the API sends must match openapi.json.
@@ -207,6 +207,62 @@ describe("responses match openapi.json", () => {
       vault(SELIN, "selin.demir@example.com", { body: "x".repeat(300 * 1024) }),
       `/api/v1/vault/organization/collections/${id}`,
     );
+    // Items, encrypted in the browser: here opaque strings.
+    const emily = app.fake.users.get("emily.clark@example.com")!.id;
+    const cipher = (over: object = {}) => ({ type: 2, name: "2.n|n|n", secureNote: { type: 0 }, encryptedFor: emily, organizationId: null, ...over });
+    const { body: added } = await call(
+      "POST",
+      "/api/v1/vault/items",
+      vault(EMILY, "emily.clark@example.com", { body: JSON.stringify({ cipher: cipher(), collectionIds: [] }) }),
+    );
+    const itemId = (added as { id: string }).id;
+    await call(
+      "POST",
+      "/api/v1/vault/items",
+      vault(EMILY, "emily.clark@example.com", { body: JSON.stringify({ cipher: cipher({ encryptedFor: "someone" }) }) }),
+    );
+    await call(
+      "POST",
+      "/api/v1/vault/items",
+      vault(EMILY, "emily.clark@example.com", { body: JSON.stringify({ cipher: cipher({ organizationId: "other" }) }) }),
+    );
+    await call("POST", "/api/v1/vault/items", as(EMILY, { body: JSON.stringify({ cipher: cipher() }) }));
+    await call("POST", "/api/v1/vault/items", vault(EMILY, "emily.clark@example.com", { body: "x".repeat(300 * 1024) }));
+    await call("PUT", "/api/v1/vault/items/{id}", vault(EMILY, "emily.clark@example.com", { body: JSON.stringify(cipher()) }), `/api/v1/vault/items/${itemId}`);
+    await call("PUT", "/api/v1/vault/items/{id}", vault(EMILY, "emily.clark@example.com", { body: JSON.stringify(cipher()) }), "/api/v1/vault/items/nope");
+    await call("PUT", "/api/v1/vault/items/{id}", vault(EMILY, "emily.clark@example.com", { body: "[]" }), `/api/v1/vault/items/${itemId}`);
+    await call("PUT", "/api/v1/vault/items/{id}", vault(EMILY, "emily.clark@example.com", { body: "x".repeat(300 * 1024) }), `/api/v1/vault/items/${itemId}`);
+    await call("PUT", "/api/v1/vault/items/{id}", as(EMILY, { body: "{}" }), `/api/v1/vault/items/${itemId}`);
+    const share = (cols: string[]) => JSON.stringify({ cipher: cipher({ organizationId: ORG }), collectionIds: cols });
+    await call(
+      "PUT",
+      "/api/v1/vault/items/{id}/share",
+      vault(EMILY, "emily.clark@example.com", { body: share(["col-finance"]) }),
+      `/api/v1/vault/items/${itemId}/share`,
+    );
+    await call("PUT", "/api/v1/vault/items/{id}/share", vault(EMILY, "emily.clark@example.com", { body: share([]) }), `/api/v1/vault/items/${itemId}/share`);
+    await call(
+      "PUT",
+      "/api/v1/vault/items/{id}/share",
+      vault(EMILY, "emily.clark@example.com", { body: share(["col-board"]) }),
+      "/api/v1/vault/items/nope/share",
+    );
+    await call(
+      "PUT",
+      "/api/v1/vault/items/{id}/share",
+      vault(EMILY, "emily.clark@example.com", { body: "x".repeat(300 * 1024) }),
+      `/api/v1/vault/items/${itemId}/share`,
+    );
+    await call("PUT", "/api/v1/vault/items/{id}/share", as(EMILY, { body: "{}" }), `/api/v1/vault/items/${itemId}/share`);
+    await call("DELETE", "/api/v1/vault/items/{id}", vault(EMILY, "emily.clark@example.com"), `/api/v1/vault/items/${itemId}`);
+    await call("DELETE", "/api/v1/vault/items/{id}", vault(EMILY, "emily.clark@example.com"), "/api/v1/vault/items/nope");
+    await call(
+      "DELETE",
+      "/api/v1/vault/items/{id}",
+      vault(EMILY, "emily.clark@example.com", { headers: { "x-vault-authorization": "Bearer nope" } }),
+      `/api/v1/vault/items/${itemId}`,
+    );
+    await call("DELETE", "/api/v1/vault/items/{id}", as(EMILY), `/api/v1/vault/items/${itemId}`);
     app.fake.state.down = true;
     try {
       await call("GET", "/api/v1/vault/sync", vault(EMILY, "emily.clark@example.com"));
@@ -214,6 +270,7 @@ describe("responses match openapi.json", () => {
       await call("POST", "/api/v1/vault/token", as(EMILY, form({ grant_type: "refresh_token", refresh_token: "refresh-x" })));
       await call("GET", "/api/v1/vault/organization/items", vault(SELIN, "selin.demir@example.com"));
       await call("POST", "/api/v1/vault/events", vault(EMILY, "emily.clark@example.com", { body: "[]" }));
+      await call("DELETE", "/api/v1/vault/items/{id}", vault(EMILY, "emily.clark@example.com"), "/api/v1/vault/items/any");
     } finally {
       app.fake.state.down = false;
     }

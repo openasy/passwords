@@ -110,6 +110,7 @@ export interface VaultSettings {
   vaultwardenUrl: string;
   leakCheck: boolean;
   member: { id: string; status: number; type: number } | null;
+  generator: { minLength: number; useUpper: boolean; useLower: boolean; useNumbers: boolean; useSpecial: boolean } | null;
 }
 
 export class Unauthorized extends Error {}

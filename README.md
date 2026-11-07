@@ -209,8 +209,9 @@ allow scripts from this server only (and WebAssembly, for Argon2id).
 
 - **Vaults:** a person's own vault and the shared ones their groups give them, one open with its items, health badges
   and the item: show and copy the password (the clipboard is cleared after 30 seconds), the live two-step code, when
-  it changed and its earlier passwords. Members of a vault come from Identity's groups. Items are added, changed,
-  imported and moved into a shared vault in the Bitwarden apps or Vaultwarden's web vault, which these buttons open.
+  it changed and its earlier passwords. Members of a vault come from Identity's groups. Logins, secure notes and cards
+  are added, changed, moved from a person's own vault into a shared one and put in the trash here (see Writing items);
+  identities, SSH keys and imports open Vaultwarden's web vault.
 - **Health:** leaked, weak, reused and not-changed-in-two-years passwords in the shared vaults, by team. Leaks are
   looked up with the k-anonymity range API of Have I Been Pwned: the browser sends the first five characters of the
   password's SHA-1 to `api.pwnedpasswords.com`, with padding, and compares the rest itself. No password and no full
@@ -221,6 +222,27 @@ allow scripts from this server only (and WebAssembly, for Argon2id).
   type and address, from Vaultwarden's event log. Kept a year, and written to the JSON log as it is read.
 - **Password server:** the vaults, groups and policies of the file, read-only, the syncs, and who holds the key.
 
+## Writing items
+
+What is typed in an item's form is encrypted in the browser before it is sent, the way the Bitwarden clients do it
+(`web/src/items.ts`), and `/api/v1/vault/items` passes it to Vaultwarden as it is:
+
+- A new item gets its own 64-byte key, encrypted with the key of the vault it goes in: the person's user key, or the
+  organization's key for a shared vault. Every web address also gets the checksum the apps check.
+- A changed item keeps its key, and only the form's fields are encrypted again. Its custom fields, passkeys,
+  attachments, folder, favourite and archive state are sent back as they came, so nothing a Bitwarden app added is
+  lost. A changed password goes into the item's history (the last five), and its date moves.
+- Each change carries the date of the copy it was made from, and Vaultwarden refuses it when the item changed
+  elsewhere since: the page then says to reload, rather than overwriting someone else's change.
+- Moving a personal item into a shared vault encrypts its key again with the organization's key. An item with
+  attachments is moved in a Bitwarden app, which moves the files too.
+- New passwords are made in the browser with at least 20 characters of every kind, or the vaults file's
+  `passwordGenerator.minLength` when it is longer.
+
+Vaultwarden decides who may write: a vault given as `read` refuses new and changed items, and an item can only be
+written by someone who may edit it. This server only checks that an item stays in the person's own vault or the
+company's organization.
+
 ## Roles
 
 Users open their own vault and the shared ones their groups give them, and see Health for those. Viewers also see
@@ -228,25 +250,41 @@ Leavers, Activity and the Password server page; editors also plan leaving dates 
 sync on request, manage members and API tokens (ADR 0003), and, when they are also an owner or admin of the
 organization in Vaultwarden, confirm members and create vaults from their browser. API tokens never open a vault.
 
-## Not verified against a running Vaultwarden
+## Tested against a running Vaultwarden
 
-The tests run against a Vaultwarden in memory (`server/fake-vaultwarden.ts`) written from Vaultwarden 1.37.4's source,
-and the browser's encryption against Bitwarden's published test values and Node's own crypto. What still needs a real
-Vaultwarden and the Bitwarden apps: the whole first start above, the SSO sign-in, unlocking an account made by the
-Bitwarden apps (including accounts with per-item keys and Argon2id), the policies' data as the apps read it, and
-confirming members.
+`npm run e2e` (`e2e/run.sh`, also in CI) starts the Vaultwarden that `compose.yaml` pins, over TLS, and goes through
+the first start above with its API: the owner's account and the organization, its API key, the service account made
+an admin with its own key. Then Passwords' server and its pages' own code, run as the browser runs it, do the rest
+against it, and the official Bitwarden CLI checks the result on the same accounts:
+
+- the first sync imports Identity's people and groups, invites people without an account and leaves the owner alone;
+- the generator policy reaches Vaultwarden as the apps read it;
+- the owner creates the file's vaults from the page and they get the file's groups, with the right access each;
+- the owner confirms the people waiting, from the page;
+- someone with an Argon2id account unlocks, and sees an `edit` vault and a `read` one as such;
+- items are added to a shared and a personal vault, a `read` vault refuses one, a changed password goes into the
+  history, a change from a stale copy is refused, and a personal item moves into a shared vault;
+- the Bitwarden CLI opens all of that, and the pages open items the CLI made, keep their custom fields and stars when
+  they change them, and the CLI sees an item the page put in the trash;
+- Activity names who added and changed which item, and someone Identity disables leaves at the next sync with what
+  they could see.
+
+The other tests run against a Vaultwarden in memory (`server/fake-vaultwarden.ts`) written from Vaultwarden 1.37.4's
+source. What is not tested yet: signing in to Vaultwarden through Identity (SSO), and the Bitwarden desktop and phone
+apps and browser extensions themselves (they share their encryption with the CLI).
 
 ## Coming next
 
-Adding and changing items in these pages, two-step login by email or passkey at unlock (an authenticator app works
-today), the fingerprint phrase when confirming members, and sending the leavers list to vault managers by email.
+Two-step login by email or passkey at unlock (an authenticator app works today), the fingerprint phrase when
+confirming members, and sending the leavers list to vault managers by email.
 
 ## Develop
 
 ```bash
 npm install
-npm test        # the vaults file, the sync, leavers and activity, the pass-through, the browser's crypto, and every API response against openapi.json
+npm test        # the vaults file, the sync, leavers and activity, the pass-through, the browser's crypto and items, and every API response against openapi.json
 npm run dev     # the UI, with the API on :8080
+npm run e2e     # against a real Vaultwarden in Docker, with the Bitwarden CLI (needs Docker)
 ```
 
 ## Licence

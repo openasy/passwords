@@ -454,13 +454,13 @@
               }
             }
           },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
           "401": {
             "$ref": "#/components/responses/Problem"
           },
           "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
             "$ref": "#/components/responses/Problem"
           },
           "503": {
@@ -555,16 +555,16 @@
           "400": {
             "$ref": "#/components/responses/Problem"
           },
-          "409": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
           "401": {
             "$ref": "#/components/responses/Problem"
           },
           "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
             "$ref": "#/components/responses/Problem"
           },
           "503": {
@@ -607,16 +607,16 @@
           "204": {
             "description": "Cancelled."
           },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem"
-          },
           "401": {
             "$ref": "#/components/responses/Problem"
           },
           "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
             "$ref": "#/components/responses/Problem"
           },
           "503": {
@@ -688,16 +688,16 @@
           "400": {
             "$ref": "#/components/responses/Problem"
           },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
           "401": {
             "$ref": "#/components/responses/Problem"
           },
           "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
             "$ref": "#/components/responses/Problem"
           },
           "503": {
@@ -933,13 +933,13 @@
               }
             }
           },
-          "502": {
-            "$ref": "#/components/responses/Problem"
-          },
           "413": {
             "$ref": "#/components/responses/Problem"
           },
           "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "502": {
             "$ref": "#/components/responses/Problem"
           }
         },
@@ -1113,10 +1113,10 @@
               }
             }
           },
-          "502": {
+          "413": {
             "$ref": "#/components/responses/Problem"
           },
-          "413": {
+          "502": {
             "$ref": "#/components/responses/Problem"
           }
         },
@@ -1290,10 +1290,10 @@
               }
             }
           },
-          "502": {
+          "413": {
             "$ref": "#/components/responses/Problem"
           },
-          "413": {
+          "502": {
             "$ref": "#/components/responses/Problem"
           }
         },
@@ -1387,10 +1387,10 @@
               }
             }
           },
-          "502": {
+          "413": {
             "$ref": "#/components/responses/Problem"
           },
-          "413": {
+          "502": {
             "$ref": "#/components/responses/Problem"
           }
         },
@@ -1484,10 +1484,10 @@
               }
             }
           },
-          "502": {
+          "413": {
             "$ref": "#/components/responses/Problem"
           },
-          "413": {
+          "502": {
             "$ref": "#/components/responses/Problem"
           }
         },
@@ -1589,14 +1589,443 @@
               }
             }
           },
-          "502": {
+          "413": {
             "$ref": "#/components/responses/Problem"
           },
-          "413": {
+          "502": {
             "$ref": "#/components/responses/Problem"
           }
         },
         "x-openasy-role": "admin"
+      }
+    },
+    "/api/v1/vault/items": {
+      "post": {
+        "tags": [
+          "Vault"
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "operationId": "createItem",
+        "summary": "Add an item",
+        "description": "Adds an item the browser encrypted: to the person's own vault through Vaultwarden's /api/ciphers, or to shared vaults through /api/ciphers/create when collectionIds is not empty. `cipher.organizationId` is null or the company's organization; `cipher.encryptedFor` is the person's Vaultwarden user id. Vaultwarden checks that they may write to those collections. Needs a signed-in person, not an API token.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "`{ cipher, collectionIds }`: the item as the Bitwarden clients send it, every field encrypted."
+        },
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "description": "The item is not one this server passes on (a problem), or Vaultwarden refused it, such as an item not encrypted for the caller (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      }
+    },
+    "/api/v1/vault/items/{id}": {
+      "put": {
+        "tags": [
+          "Vault"
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "operationId": "updateItem",
+        "summary": "Change an item",
+        "description": "Vaultwarden's /api/ciphers/{id}: the whole item, encrypted in the browser, with `lastKnownRevisionDate` so a change made elsewhere meanwhile is not overwritten. Needs a signed-in person, not an API token.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "The item as the Bitwarden clients send it, every field encrypted."
+        },
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "description": "The item is not one this server passes on (a problem), or Vaultwarden refused it, such as an item not encrypted for the caller (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      },
+      "delete": {
+        "tags": [
+          "Vault"
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "operationId": "deleteItem",
+        "summary": "Put an item in the trash",
+        "description": "Vaultwarden's /api/ciphers/{id}/delete: the item goes to the trash, where the Bitwarden apps can bring it back for 30 days. Needs a signed-in person, not an API token.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
+      }
+    },
+    "/api/v1/vault/items/{id}/share": {
+      "put": {
+        "tags": [
+          "Vault"
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "operationId": "shareItem",
+        "summary": "Move an item into a shared vault",
+        "description": "Vaultwarden's /api/ciphers/{id}/share: a personal item, its key encrypted again in the browser with the organization's key, into one or more collections. Needs a signed-in person, not an API token.",
+        "parameters": [
+          {
+            "name": "x-vault-authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`Bearer <token>`: the person's own Vaultwarden access token, from the token request. Passed on as Vaultwarden's Authorization header."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "`{ cipher, collectionIds }`, with `cipher.organizationId` the company's organization."
+        },
+        "responses": {
+          "200": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Vaultwarden's refusal, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session here (a problem), or Vaultwarden refused the person's Vaultwarden token (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "description": "Vaultwarden's answer, passed on as it is.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "description": "The item is not one this server passes on (a problem), or Vaultwarden refused it, such as an item not encrypted for the caller (its answer).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultwardenAnswer"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "x-openasy-role": "user"
       }
     }
   },
@@ -2446,7 +2875,8 @@
           "organizationId",
           "vaultwardenUrl",
           "leakCheck",
-          "member"
+          "member",
+          "generator"
         ],
         "properties": {
           "email": {
@@ -2475,6 +2905,30 @@
               },
               "type": {
                 "type": "integer"
+              }
+            }
+          },
+          "generator": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The vaults file's passwordGenerator policy, which passwords made in the pages follow.",
+            "properties": {
+              "minLength": {
+                "type": "integer"
+              },
+              "useUpper": {
+                "type": "boolean"
+              },
+              "useLower": {
+                "type": "boolean"
+              },
+              "useNumbers": {
+                "type": "boolean"
+              },
+              "useSpecial": {
+                "type": "boolean"
               }
             }
           }

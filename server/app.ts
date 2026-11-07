@@ -168,6 +168,27 @@ const TOKEN_FIELDS = [
 ];
 
 /**
+ * An item the browser sends, `{ cipher, collectionIds }`. Its fields are encrypted and passed on as they are; only its
+ * organization is checked, so an item cannot be written into another organization through this server.
+ */
+export function itemBody(body: unknown, organizationId: string): { cipher: Record<string, unknown>; collectionIds: string[] } {
+  const b = body as { cipher?: unknown; collectionIds?: unknown } | null;
+  const cipher = b?.cipher;
+  if (!cipher || typeof cipher !== "object" || Array.isArray(cipher))
+    throw new PasswordsError(422, "invalid-body", "The body needs the encrypted item as cipher.");
+  const c = cipher as Record<string, unknown>;
+  if (typeof c.encryptedFor !== "string") throw new PasswordsError(422, "invalid-body", "cipher.encryptedFor is the person's Vaultwarden user id.");
+  if (c.organizationId != null && c.organizationId !== organizationId)
+    throw new PasswordsError(422, "invalid-body", "Items are kept in your own vault or in the company's organization only.");
+  const ids = b?.collectionIds ?? [];
+  if (!Array.isArray(ids) || !ids.every((x) => typeof x === "string"))
+    throw new PasswordsError(422, "invalid-body", "collectionIds is a list of collection ids.");
+  if (ids.length && c.organizationId !== organizationId)
+    throw new PasswordsError(422, "invalid-body", "An item in a shared vault needs the company's organization as organizationId.");
+  return { cipher: c, collectionIds: ids as string[] };
+}
+
+/**
  * The role a route needs (ADR 0003). "none" for the version; "self" for a person's own vault, which needs a signed-in
  * person (not an API token) and acts only as that person; "self-admin" also needs the admin role.
  */
@@ -363,6 +384,49 @@ export function createApp({
         void passwords.syncNow();
         return r;
       },
+    },
+
+    // Items the person adds, changes, moves into a shared vault or puts in the trash, encrypted in their browser.
+    // Vaultwarden checks that they may write to the item and its vault; this server only keeps the organization to
+    // the company's one.
+    {
+      method: "POST",
+      path: "/api/v1/vault/items",
+      auth: "self",
+      handle: async (ctx) => {
+        const { cipher, collectionIds } = itemBody(await readJson(ctx.req, PASS_LIMIT), vaultwarden.organizationId);
+        // A personal item goes to /ciphers; a shared one is created in its collections at once, as the apps do.
+        return collectionIds.length
+          ? pass(ctx, "POST", "/api/ciphers/create", JSON.stringify({ cipher, collectionIds }))
+          : pass(ctx, "POST", "/api/ciphers", JSON.stringify(cipher));
+      },
+    },
+    {
+      method: "PUT",
+      path: "/api/v1/vault/items/:id",
+      auth: "self",
+      handle: async (ctx) => {
+        const { cipher } = itemBody({ cipher: await readJson(ctx.req, PASS_LIMIT), collectionIds: [] }, vaultwarden.organizationId);
+        return pass(ctx, "PUT", `/api/ciphers/${encodeURIComponent(ctx.params[0]!)}`, JSON.stringify(cipher));
+      },
+    },
+    {
+      method: "PUT",
+      path: "/api/v1/vault/items/:id/share",
+      auth: "self",
+      handle: async (ctx) => {
+        const { cipher, collectionIds } = itemBody(await readJson(ctx.req, PASS_LIMIT), vaultwarden.organizationId);
+        if (!collectionIds.length || !cipher.organizationId)
+          throw new PasswordsError(422, "invalid-body", "Moving an item needs the organization and at least one collection.");
+        return pass(ctx, "PUT", `/api/ciphers/${encodeURIComponent(ctx.params[0]!)}/share`, JSON.stringify({ cipher, collectionIds }));
+      },
+    },
+    {
+      method: "DELETE",
+      path: "/api/v1/vault/items/:id",
+      auth: "self",
+      // To the trash, as the apps do: it can be brought back there for 30 days.
+      handle: (ctx) => pass(ctx, "PUT", `/api/ciphers/${encodeURIComponent(ctx.params[0]!)}/delete`),
     },
   ];
 

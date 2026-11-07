@@ -95,7 +95,8 @@
     "none": "None",
     "edit": "Edit",
     "move": "Move to vault",
-    "editsInApps": "Items are changed in the Bitwarden apps or the web vault, which encrypt them on your device."
+    "editsInApps": "This kind of item is changed in the Bitwarden apps or the web vault, which encrypt it on your device.",
+    "editInWebVault": "Edit in the web vault"
   },
   "access": {
     "read": "Can view",
@@ -306,5 +307,42 @@
     "signOut": "Sign out",
     "adminsOnly": "Only for admins",
     "askAnAdmin": "Ask an admin of Passwords if you need this."
+  },
+  "form": {
+    "newTitle": "New item",
+    "editTitle": "Change {{name}}",
+    "e2e": "Encrypted in this browser before it is saved. The server never sees what you type.",
+    "kind": "Kind",
+    "kinds": {
+      "login": "Login",
+      "note": "Secure note",
+      "card": "Card"
+    },
+    "vault": "Vault",
+    "name": "Name",
+    "nameNeeded": "Give the item a name.",
+    "generate": "Make a strong password",
+    "keptInHistory": "The old password is kept in the item's history.",
+    "totp": "Two-step secret",
+    "totpHint": "The key or otpauth:// link from the site's two-step setup",
+    "totpBad": "This is not a two-step key or otpauth:// link.",
+    "uri": "Website",
+    "moreUris_one": "{{count}} more address is kept as it is.",
+    "moreUris_other": "{{count}} more addresses are kept as they are.",
+    "expMonth": "Expiry month",
+    "expYear": "Expiry year",
+    "brand": "Brand",
+    "notes": "Notes",
+    "add": "Add item",
+    "save": "Save",
+    "failed": "Not saved",
+    "moveTitle": "Move {{name}} to a shared vault",
+    "moveDetail": "Everyone the vault's groups give access sees it, and it leaves your own vault. It is encrypted again with the vault's key in this browser.",
+    "move": "Move",
+    "noTargets": "None of your shared vaults lets you add items.",
+    "deleteTitle": "Put {{name}} in the trash?",
+    "deleteMine": "It can be brought back from the trash in a Bitwarden app for 30 days.",
+    "deleteShared": "It leaves the shared vault for everyone. An owner or admin can bring it back from the trash in a Bitwarden app for 30 days.",
+    "delete": "Put in the trash"
   }
 }

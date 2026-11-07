@@ -95,7 +95,8 @@
     "none": "Yok",
     "edit": "Düzenle",
     "move": "Kasaya taşı",
-    "editsInApps": "Öğeler Bitwarden uygulamalarında veya web kasasında değişir; onlar öğeleri cihazınızda şifreler."
+    "editsInApps": "Bu tür kayıtlar Bitwarden uygulamalarında ya da web kasasında değiştirilir; onlar da kaydı cihazınızda şifreler.",
+    "editInWebVault": "Web kasasında düzenle"
   },
   "access": {
     "read": "Görebilir",
@@ -306,5 +307,42 @@
     "signOut": "Çıkış yap",
     "adminsOnly": "Yalnızca yöneticiler",
     "askAnAdmin": "Buna ihtiyacınız varsa Passwords'ün bir yöneticisine sorun."
+  },
+  "form": {
+    "newTitle": "Yeni kayıt",
+    "editTitle": "{{name}} kaydını değiştir",
+    "e2e": "Kaydedilmeden önce bu tarayıcıda şifrelenir. Sunucu yazdıklarınızı hiç görmez.",
+    "kind": "Tür",
+    "kinds": {
+      "login": "Giriş",
+      "note": "Güvenli not",
+      "card": "Kart"
+    },
+    "vault": "Kasa",
+    "name": "Ad",
+    "nameNeeded": "Kayda bir ad verin.",
+    "generate": "Güçlü bir parola oluştur",
+    "keptInHistory": "Eski parola kaydın geçmişinde saklanır.",
+    "totp": "İki adımlı doğrulama anahtarı",
+    "totpHint": "Sitenin iki adımlı doğrulama kurulumundaki anahtar ya da otpauth:// bağlantısı",
+    "totpBad": "Bu bir iki adımlı doğrulama anahtarı ya da otpauth:// bağlantısı değil.",
+    "uri": "Web sitesi",
+    "moreUris_one": "Diğer {{count}} adres olduğu gibi kalır.",
+    "moreUris_other": "Diğer {{count}} adres olduğu gibi kalır.",
+    "expMonth": "Son kullanma ayı",
+    "expYear": "Son kullanma yılı",
+    "brand": "Marka",
+    "notes": "Notlar",
+    "add": "Kaydı ekle",
+    "save": "Kaydet",
+    "failed": "Kaydedilmedi",
+    "moveTitle": "{{name}} kaydını paylaşılan bir kasaya taşı",
+    "moveDetail": "Kasanın gruplarının erişim verdiği herkes onu görür ve kayıt kendi kasanızdan çıkar. Bu tarayıcıda kasanın anahtarıyla yeniden şifrelenir.",
+    "move": "Taşı",
+    "noTargets": "Paylaşılan kasalarınızın hiçbirine kayıt ekleyemiyorsunuz.",
+    "deleteTitle": "{{name}} çöp kutusuna atılsın mı?",
+    "deleteMine": "30 gün boyunca bir Bitwarden uygulamasında çöp kutusundan geri alınabilir.",
+    "deleteShared": "Paylaşılan kasadan herkes için çıkar. Bir sahip ya da yönetici 30 gün boyunca bir Bitwarden uygulamasında çöp kutusundan geri alabilir.",
+    "delete": "Çöp kutusuna at"
   }
 }

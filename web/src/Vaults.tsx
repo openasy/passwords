@@ -1,17 +1,18 @@
 // A person's vaults: their own and the shared ones their groups give them, one open with its items, decrypted in this
-// browser. Items are added and changed in the Bitwarden apps or Vaultwarden's web vault; this page reads them, shows
-// and copies a password, and makes the two-step code.
+// browser. Logins, notes and cards are added, changed, moved into a shared vault and put in the trash here, encrypted
+// in this browser first; other kinds and imports open Vaultwarden's web vault.
 import { Avatar, Badge, Button, Callout, DataTable, IconButton, PageHeader, Panel, SearchInput, Tabs, cn, type Column, type Tone } from "@openasy/ui";
 import { useAuth } from "@openasy/auth/react";
-import { Copy, CreditCard, ExternalLink, Eye, EyeOff, FileText, IdCard, KeyRound, Lock, Plus, ShieldCheck, Users } from "lucide-react";
+import { Copy, CreditCard, ExternalLink, Eye, EyeOff, FileText, IdCard, KeyRound, Lock, Pencil, Plus, ShieldCheck, Trash2, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Call, Confirmation, Vault, VaultEvent } from "./api.ts";
 import { useDate } from "./format.ts";
 import { strength } from "./health.ts";
 import { useT } from "./i18n.ts";
+import { DeleteDialog, ItemDialog, MoveDialog, writable } from "./ItemForm.tsx";
 import { parseTotp, totp } from "./totp.ts";
 import { RequireUnlock, useVault } from "./Unlock.tsx";
-import { EVENT, type Collection, type Item, type Kind } from "./vault.ts";
+import { editable, EVENT, type Collection, type Item, type Kind } from "./vault.ts";
 
 const KIND_ICON = { login: KeyRound, card: CreditCard, note: FileText, identity: IdCard, other: FileText } as const;
 const STRENGTH_TONE: Record<string, Tone> = { strong: "success", fair: "warning", weak: "danger" };
@@ -46,6 +47,7 @@ function ItemDetail({ item, lastOpened }: { item: Item; lastOpened: VaultEvent |
   const { session, settings } = useVault();
   const [shown, setShown] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<"edit" | "move" | "delete" | null>(null);
   const code = useTotp(item.totp);
   const Icon = KIND_ICON[item.kind];
 
@@ -151,17 +153,34 @@ function ItemDetail({ item, lastOpened }: { item: Item; lastOpened: VaultEvent |
           <dd className="m-0 text-fg">{item.history ? t("item.earlier", { count: item.history }) : t("item.none")}</dd>
         </dl>
         <div className="flex flex-wrap gap-1.5">
-          <Button size="sm" icon={<ExternalLink />} onClick={() => webVault(`/vault?itemId=${encodeURIComponent(item.id)}`)} disabled={!item.edit}>
-            {t("item.edit")}
-          </Button>
-          {!item.organizationId && (
-            <Button size="sm" variant="ghost" onClick={() => webVault(`/vault?itemId=${encodeURIComponent(item.id)}`)}>
+          {editable(item) ? (
+            <Button size="sm" icon={<Pencil />} onClick={() => setDialog("edit")}>
+              {t("item.edit")}
+            </Button>
+          ) : (
+            item.edit &&
+            !item.error && (
+              <Button size="sm" icon={<ExternalLink />} onClick={() => webVault(`/vault?itemId=${encodeURIComponent(item.id)}`)}>
+                {t("item.editInWebVault")}
+              </Button>
+            )
+          )}
+          {!item.organizationId && !item.error && writable(session?.collections ?? []).length > 0 && (
+            <Button size="sm" variant="ghost" onClick={() => setDialog("move")}>
               {t("item.move")}
             </Button>
           )}
+          {item.edit && (
+            <IconButton label={t("form.delete")} size="sm" onClick={() => setDialog("delete")}>
+              <Trash2 className="size-3.5" />
+            </IconButton>
+          )}
         </div>
-        <p className="m-0 text-2xs text-fg-muted">{t("item.editsInApps")}</p>
+        {!editable(item) && item.edit && !item.error && <p className="m-0 text-2xs text-fg-muted">{t("item.editsInApps")}</p>}
       </div>
+      {dialog === "edit" && <ItemDialog open onOpenChange={(o) => !o && setDialog(null)} item={item} />}
+      {dialog === "move" && <MoveDialog open onOpenChange={(o) => !o && setDialog(null)} item={item} />}
+      {dialog === "delete" && <DeleteDialog open onOpenChange={(o) => !o && setDialog(null)} item={item} />}
     </Panel>
   );
 }
@@ -276,6 +295,7 @@ function VaultsView({ call }: { call: Call }) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState<string | null>(null);
   const [events, setEvents] = useState<VaultEvent[]>([]);
+  const [adding, setAdding] = useState(false);
 
   const collection = collections.find((c) => c.id === open);
   const fileVault: Vault | undefined = collection && vaults.find((v) => v.collectionId === collection.id || v.id === collection.externalId);
@@ -376,12 +396,13 @@ function VaultsView({ call }: { call: Call }) {
               {t("vaults.lock")}
             </Button>
             <Button onClick={() => webVault("/tools/import")}>{t("vaults.import")}</Button>
-            <Button variant="primary" icon={<Plus />} onClick={() => webVault("/vault")}>
+            <Button variant="primary" icon={<Plus />} onClick={() => setAdding(true)}>
               {t("vaults.newItem")}
             </Button>
           </>
         }
       />
+      {adding && <ItemDialog open onOpenChange={setAdding} vault={open} />}
       {role("admin") && <AdminCallouts call={call} />}
       <div className="pw-vaults">
         <Panel flush aria-label={t("vaults.yours")}>

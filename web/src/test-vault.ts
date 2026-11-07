@@ -30,6 +30,8 @@ export function vaultServer({ twoFactor = false } = {}) {
   const itemKey = randomBytes(64);
   const member = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const sent: Array<{ path: string; body: string; vault: string | null }> = [];
+  /** Items the page wrote, kept as Vaultwarden would and sent back at the next sync. */
+  const written: Array<Record<string, unknown>> = [];
   let expired = false;
   const json = (body: unknown, status = 200, type = "application/json") => new Response(JSON.stringify(body), { status, headers: { "content-type": type } });
 
@@ -53,6 +55,7 @@ export function vaultServer({ twoFactor = false } = {}) {
       if (expired && vault === "Bearer access-1") return json({ message: "Token expired" }, 401);
       return json({
         profile: {
+          id: "user-emily",
           privateKey: aes(user, pair.privateKey.export({ type: "pkcs8", format: "der" })),
           organizations: [
             {
@@ -94,6 +97,7 @@ export function vaultServer({ twoFactor = false } = {}) {
             revisionDate: "2026-07-01T00:00:00Z",
           },
           { id: "broken", type: 2, organizationId: ORG, collectionIds: [], name: "2.AAAA|AAAA|AAAA", revisionDate: "2026-07-01T00:00:00Z" },
+          ...written.filter((c) => !c.deletedDate),
         ],
         collections: [
           { id: "col-finance", organizationId: ORG, name: aes(org, "Finance"), externalId: "finance", readOnly: false, hidePasswords: false, manage: true },
@@ -110,12 +114,37 @@ export function vaultServer({ twoFactor = false } = {}) {
     if (path === "/api/v1/vault/organization/confirm")
       return json({ data: (JSON.parse(body).keys as Array<{ id: string }>).map((k) => ({ id: k.id, error: "" })) });
     if (path === "/api/v1/vault/organization/collections") return json({ id: "col-sales" });
+    if (path === "/api/v1/vault/items" && init.method === "POST") {
+      const b = JSON.parse(body) as { cipher: Record<string, unknown>; collectionIds: string[] };
+      if (b.cipher.encryptedFor !== "user-emily") return json({ message: "Invalid user cipher" }, 422);
+      const c = {
+        ...b.cipher,
+        id: `new-${written.length + 1}`,
+        collectionIds: b.collectionIds,
+        revisionDate: "2026-11-04T09:30:00Z",
+        edit: true,
+        viewPassword: true,
+      };
+      written.push(c);
+      return json(c);
+    }
+    const item = /^\/api\/v1\/vault\/items\/([^/]+)(\/share)?$/.exec(path);
+    if (item) {
+      const i = written.findIndex((c) => c.id === item[1]);
+      if (i < 0) return json({ message: "Cipher doesn't exist" }, 400);
+      if (init.method === "DELETE") return ((written[i]!.deletedDate = "2026-11-04T09:40:00Z"), json({}));
+      const b = JSON.parse(body) as Record<string, any>;
+      const c = item[2] ? { ...b.cipher, collectionIds: b.collectionIds } : { ...b, collectionIds: written[i]!.collectionIds };
+      written[i] = { ...c, id: item[1], revisionDate: "2026-11-04T09:35:00Z", edit: true, viewPassword: true };
+      return json(written[i]);
+    }
     if (path === "/api/v1/vault/events") return new Response("{}", { headers: { "content-type": "application/json" } });
     return json({}, 404);
   }) as unknown as typeof globalThis.fetch;
   return {
     fetch,
     sent,
+    written,
     org,
     member,
     expire: () => (expired = true),
