@@ -185,8 +185,10 @@ describe("the pages", () => {
   it("add an item to the open shared vault, encrypted before it leaves the page, then change and remove it", async () => {
     const button = (name: string) =>
       [...document.querySelectorAll("button")].find((b) => (b.textContent ?? b.getAttribute("aria-label")) === name || b.getAttribute("aria-label") === name)!;
+    // In the open dialog when there is one: the item's own page behind it has labels of the same name.
     const field = (label: string) => {
-      const l = [...document.querySelectorAll("label")].find((x) => x.textContent === label)!;
+      const scope = document.querySelector('[role="dialog"]') ?? document;
+      const l = [...scope.querySelectorAll("label")].find((x) => x.textContent === label)!;
       return document.getElementById(l.htmlFor) as HTMLInputElement;
     };
     await act(async () =>
