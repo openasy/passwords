@@ -414,7 +414,7 @@ function VaultsView({ call }: { call: Call }) {
                   onClick={() => (setOpen(x.id), setActive(null), setTab("items"))}
                   aria-current={x.id === open ? "true" : undefined}
                   className={cn(
-                    "flex w-full items-center gap-2 border-0 bg-transparent px-3 py-1.5 text-left",
+                    "flex w-full items-center gap-2 border-0 bg-transparent px-3 py-1.5 text-start",
                     x.id === open ? "bg-accent-soft text-accent-text" : "text-fg hover:bg-canvas",
                   )}
                 >

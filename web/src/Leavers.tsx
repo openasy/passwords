@@ -229,7 +229,7 @@ function LeaversView({ call }: { call: Call }) {
                   <button
                     type="button"
                     onClick={() => setSelected(l.id)}
-                    className="flex w-full items-center justify-between gap-2 border-0 bg-transparent px-3 py-2 text-left hover:bg-canvas"
+                    className="flex w-full items-center justify-between gap-2 border-0 bg-transparent px-3 py-2 text-start hover:bg-canvas"
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <Avatar name={l.name} size="sm" />

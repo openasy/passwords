@@ -28,7 +28,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ActivityPage } from "./Activity.tsx";
 import { api, MfaSetupRequired, Unauthorized, type Call, type ConfigFile, type ProductLink, type Summary, type SyncResult, type Vault } from "./api.ts";
 import { HealthPage } from "./Health.tsx";
-import { useT, type T } from "./i18n.ts";
+import { useT, type T, setViewerLocale } from "./i18n.ts";
 import { LeaversPage } from "./Leavers.tsx";
 import { VaultProvider } from "./Unlock.tsx";
 import { VaultsPage } from "./Vaults.tsx";
@@ -371,6 +371,7 @@ export function App({ about }: { about: Colophon }) {
   const installBrand = useInstallBrand();
   const [theme] = useThemePreference();
   const [locale] = useLocalePreference();
+  setViewerLocale(locale);
   return (
     // The install's brand from config/brand.env (ADR 0053); OpenAsy's own look where it sets none.
     <BrandProvider theme={theme} locale={locale} brand={{ name: "OpenAsy", organization: undefined, ...installBrand }} className="min-h-screen">
