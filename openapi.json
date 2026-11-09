@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpenAsy Passwords API",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "summary": "A password manager for the team on Vaultwarden, with shared vaults by Identity group.",
     "description": "Every screen of Passwords uses this API, and so can your scripts (ADR 0014). Within `/api/v1` changes are additive only; anything removed is deprecated first (ADR 0024). Errors use Problem Details (RFC 9457).\n\nThe shared vaults, who may see or change each, and the policies are set in the vaults file, never through the API; Passwords keeps Vaultwarden in step with it and with Identity. Under `/api/v1/vault` a signed-in person's browser reaches Vaultwarden through this server, as it is: the browser derives every key and decrypts every item, and this server keeps none of them. Those routes take the session of that person, never an API token. Everything else takes a session or an API token, and each operation names the role it needs (`x-openasy-role`: user, viewer, editor, admin; ADR 0003).\n\nSign-in, members and API tokens are under `/api/v1/auth`, provided by [@openasy/auth](https://github.com/openasy/auth#routes).",
     "license": {

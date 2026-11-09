@@ -1,6 +1,6 @@
 {
   "name": "@openasy/passwords",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "OpenAsy Passwords: a password manager for the team on Vaultwarden, with shared vaults by Identity group set in a file, decrypted only in the browser.",
   "license": "AGPL-3.0-only",

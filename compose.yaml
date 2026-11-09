@@ -48,7 +48,7 @@ services:
       # ADMIN_TOKEN is left unset on purpose.
 
   passwords:
-    image: ghcr.io/openasy/passwords:0.1.0
+    image: ghcr.io/openasy/passwords:0.1.1
     restart: unless-stopped
     depends_on: [vaultwarden]
     read_only: true
